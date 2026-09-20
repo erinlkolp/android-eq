@@ -51,6 +51,19 @@ class EqService : Service() {
                 dp.setPreEqBandAllChannelsTo(bandIndex, eqBand)
             }
         }
+
+        fun updatePreamp(gainDb: Float) {
+            val service = instance ?: return
+            val dps = service.eqSessions.values.toMutableList()
+            if (service.globalEq != null) dps.add(service.globalEq!!)
+            for (dp in dps) {
+                try {
+                    dp.setInputGainAllChannelsTo(gainDb)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
     }
 
     override fun onCreate() {
@@ -67,6 +80,7 @@ class EqService : Service() {
             "ACTION_START" -> {
                 startForeground(1, createNotification())
                 applyGlobalEq() // Attempt Session 0
+                updateAllBands()
             }
             "ACTION_STOP" -> {
                 releaseAll()
@@ -75,6 +89,10 @@ class EqService : Service() {
             }
             "ACTION_UPDATE_BANDS" -> {
                 updateAllBands()
+            }
+            "ACTION_UPDATE_PREAMP" -> {
+                val preampProgress = sharedPrefs.getInt("preamp_gain", 120)
+                updatePreamp(EqHelper.progressToGainDb(preampProgress))
             }
             "ACTION_OPEN_SESSION" -> {
                 val sessionId = intent.getIntExtra("session_id", -1)
@@ -118,63 +136,90 @@ class EqService : Service() {
     }
 
     private fun createDynamicsProcessing(sessionId: Int): DynamicsProcessing? {
-        try {
-            val builder = DynamicsProcessing.Config.Builder(
-                DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
-                2, // stereo
-                true, // preEqInUse
-                31, // preEqBandCount
-                false, // mbcInUse
-                0, // mbcBandCount
-                false, // postEqInUse
-                0, // postEqBandCount
-                false // limiterInUse
-            )
-            
-            val eq = DynamicsProcessing.Eq(
-                true, // inUse
-                true, // enabled
-                31 // activeBandCount
-            )
-            
-            // Set up all 31 bands
-            for (i in 0 until 31) {
-                // Read from preferences, default is 120 (0dB)
-                val progress = sharedPrefs.getInt("band_$i", 120)
-                val gainDb = (progress - 120) / 10.0f
-                val eqBand = DynamicsProcessing.EqBand(
-                    true, // enabled
-                    frequencies[i], // cutoff frequency
-                    gainDb // gain
-                )
-                eq.setBand(i, eqBand)
-            }
-            
-            val channel = DynamicsProcessing.Channel(
-                0f, // inputGain
-                true, // preEqInUse
-                31, // preEqBandCount
-                false, // mbcInUse
-                0, // mbcBandCount
-                false, // postEqInUse
-                0, // postEqBandCount
-                false // limiterInUse
-            )
-            channel.preEq = eq
-            
-            val config = builder
-                .setPreferredFrameDuration(10f)
-                .setChannelTo(0, channel)
-                .setChannelTo(1, channel)
-                .build()
-
-            val dp = DynamicsProcessing(0, sessionId, config)
-            dp.enabled = true
-            return dp
+        // Try creating with anti-clipping limiter first, fall back without limiter if unsupported
+        return try {
+            buildDynamicsProcessing(sessionId, withLimiter = true)
         } catch (e: Exception) {
-            e.printStackTrace()
-            return null
+            android.util.Log.w("EqService", "Creating with limiter failed, falling back to without limiter", e)
+            try {
+                buildDynamicsProcessing(sessionId, withLimiter = false)
+            } catch (e2: Exception) {
+                android.util.Log.e("EqService", "Failed to create DynamicsProcessing", e2)
+                null
+            }
         }
+    }
+
+    private fun buildDynamicsProcessing(sessionId: Int, withLimiter: Boolean): DynamicsProcessing {
+        val builder = DynamicsProcessing.Config.Builder(
+            DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
+            2, // stereo
+            true, // preEqInUse
+            31, // preEqBandCount
+            false, // mbcInUse
+            0, // mbcBandCount
+            false, // postEqInUse
+            0, // postEqBandCount
+            withLimiter // limiterInUse
+        )
+        
+        val eq = DynamicsProcessing.Eq(
+            true, // inUse
+            true, // enabled
+            31 // activeBandCount
+        )
+        
+        // Set up all 31 bands
+        for (i in 0 until 31) {
+            val progress = sharedPrefs.getInt("band_$i", 120)
+            val gainDb = (progress - 120) / 10.0f
+            val eqBand = DynamicsProcessing.EqBand(
+                true, // enabled
+                frequencies[i], // cutoff frequency
+                gainDb // gain
+            )
+            eq.setBand(i, eqBand)
+        }
+        
+        val preampProgress = sharedPrefs.getInt("preamp_gain", 120)
+        val preampGainDb = EqHelper.progressToGainDb(preampProgress)
+
+        val channel = DynamicsProcessing.Channel(
+            preampGainDb, // inputGain
+            true, // preEqInUse
+            31, // preEqBandCount
+            false, // mbcInUse
+            0, // mbcBandCount
+            false, // postEqInUse
+            0, // postEqBandCount
+            withLimiter // limiterInUse
+        )
+        channel.preEq = eq
+
+        if (withLimiter) {
+            // Anti-clipping studio-grade peak limiter (1ms attack, 50ms release, 10:1 ratio, -0.1 dB threshold)
+            val limiter = DynamicsProcessing.Limiter(
+                true,  // inUse
+                true,  // enabled
+                0,     // linkGroup (0 = stereo linked to preserve stereo imaging)
+                1.0f,  // attackTime ms
+                50.0f, // releaseTime ms
+                10.0f, // ratio
+                -0.1f, // threshold dB
+                0.0f   // postGain dB
+            )
+            channel.limiter = limiter
+        }
+        
+        val config = builder
+            .setPreferredFrameDuration(10f)
+            .setChannelTo(0, channel)
+            .setChannelTo(1, channel)
+            .build()
+
+        val dp = DynamicsProcessing(0, sessionId, config)
+        dp.enabled = true
+        return dp
     }
 
     private fun applyGlobalEq() {
@@ -211,11 +256,18 @@ class EqService : Service() {
             val progress = sharedPrefs.getInt("band_$i", 120)
             gains[i] = (progress - 120) / 10.0f
         }
+        val preampProgress = sharedPrefs.getInt("preamp_gain", 120)
+        val preampGainDb = EqHelper.progressToGainDb(preampProgress)
 
         val dps = eqSessions.values.toMutableList()
         if (globalEq != null) dps.add(globalEq!!)
 
         for (dp in dps) {
+            try {
+                dp.setInputGainAllChannelsTo(preampGainDb)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             for (i in 0 until 31) {
                 // To dynamically update a band across all channels
                 val eqBand = DynamicsProcessing.EqBand(

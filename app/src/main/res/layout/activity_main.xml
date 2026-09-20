@@ -84,7 +84,43 @@
                 android:textSize="13sp" />
         </LinearLayout>
 
-        <!-- Power & Reset Controls -->
+        <!-- Preamp & Headroom Control Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:id="@+id/tv_preamp_gain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Preamp: 0.0 dB"
+                android:textColor="#EEEEEE"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:minWidth="105dp" />
+
+            <SeekBar
+                android:id="@+id/seek_bar_preamp"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="240"
+                android:progress="120" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switch_auto_headroom"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Auto"
+                android:textColor="#CCCCCC"
+                android:textSize="12sp"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- Power, Draw Mode, Smooth, & Reset Controls -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -97,35 +133,70 @@
                 android:layout_height="wrap_content"
                 android:text="Enable"
                 android:textColor="#EEEEEE"
-                android:textSize="16sp"
-                android:layout_marginEnd="24dp" />
+                android:textSize="14sp"
+                android:layout_marginEnd="8dp" />
 
-            <View
+            <Button
+                android:id="@+id/btn_draw_curve"
                 android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
+                android:layout_height="38dp"
+                android:layout_weight="1"
+                android:text="✏️ Draw"
+                android:textSize="12sp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/btn_smooth_curve"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:text="Smooth"
+                android:textSize="12sp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:layout_marginEnd="4dp" />
 
             <Button
                 android:id="@+id/btn_reset"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Reset to Flat" />
+                android:layout_height="38dp"
+                android:text="Flat"
+                android:textSize="12sp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Horizontal Scroll for our 31 bands -->
-    <HorizontalScrollView
+    <!-- Bands Container with Gesture Overlay -->
+    <FrameLayout
+        android:id="@+id/bands_container_frame"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fillViewport="true">
+        android:layout_height="match_parent">
 
-        <LinearLayout
-            android:id="@+id/eq_bands_container"
-            android:layout_width="wrap_content"
+        <HorizontalScrollView
+            android:id="@+id/scroll_view_bands"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="horizontal"
-            android:gravity="center_horizontal" />
+            android:fillViewport="true">
 
-    </HorizontalScrollView>
+            <LinearLayout
+                android:id="@+id/eq_bands_container"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:gravity="center_horizontal" />
+
+        </HorizontalScrollView>
+
+        <!-- Draw Mode Overlay: Intercepts gestures when active and provides subtle tint -->
+        <View
+            android:id="@+id/draw_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"
+            android:background="#1500BCD4" />
+
+    </FrameLayout>
 
 </LinearLayout>
