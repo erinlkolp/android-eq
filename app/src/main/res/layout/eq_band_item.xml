@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="60dp"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="4dp">
+
+    <!-- Gain value label -->
+    <TextView
+        android:id="@+id/tv_gain"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0 dB"
+        android:textColor="#EEEEEE"
+        android:textSize="12sp"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- FrameLayout to isolate rotated SeekBar bounding box -->
+    <FrameLayout
+        android:id="@+id/seek_bar_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipChildren="false">
+
+        <SeekBar
+            android:id="@+id/seek_bar_band"
+            android:layout_width="300dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:rotation="270"
+            android:max="240"
+            android:progress="120" />
+    </FrameLayout>
+
+    <!-- Frequency label -->
+    <TextView
+        android:id="@+id/tv_frequency"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="1k"
+        android:textColor="#EEEEEE"
+        android:textSize="12sp"
+        android:layout_marginTop="8dp"/>
+
+</LinearLayout>
